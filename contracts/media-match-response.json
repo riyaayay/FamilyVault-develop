@@ -1,0 +1,45 @@
+{
+  "endpoint": "POST /api/v1/biometrics/match",
+  "response": {
+    "media_id": "med_123456789",
+    "r2_url": "https://pub-xxxxxx.r2.dev/media/med_123456789.jpg",
+    "status": "processed",
+    "faces": [
+      {
+        "face_id": "face_001",
+        "bbox": [100, 50, 220, 170],
+        "match": {
+          "person_id": "usr_99999999-1111-2222-3333-444455556666",
+          "confidence": 0.92,
+          "name": "Ayushman"
+        },
+        "action_required": false
+      },
+      {
+        "face_id": "face_002",
+        "bbox": [300, 80, 410, 190],
+        "match": null,
+        "action_required": true,
+        "suggested_persons": [
+          {
+            "person_id": "usr_88888888-1111-2222-3333-444455556666",
+            "confidence": 0.81,
+            "name": "Raghuvendra"
+          }
+        ]
+      }
+    ]
+  },
+  "inbox_payload": {
+    "endpoint": "GET /api/v1/biometrics/inbox",
+    "pending_items": [
+      {
+        "media_id": "med_123456789",
+        "thumbnail_url": "https://pub-xxxxxx.r2.dev/media/med_123456789-thumb.jpg",
+        "uploaded_by": "usr_11111111",
+        "uploaded_at": "2026-09-06T12:00:00Z",
+        "pending_faces_count": 1
+      }
+    ]
+  }
+}

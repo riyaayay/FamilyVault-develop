@@ -1,0 +1,8 @@
+{
+  "MATCH_THRESHOLD": 0.85,
+  "EMBEDDING_DIMENSION": 512,
+  "MODEL_FAMILY": "InsightFace-ArcFace",
+  "DISTANCE_METRIC": "cosine_similarity",
+  "AUTO_PUBLISH_RULE": "similarity >= MATCH_THRESHOLD",
+  "INBOX_QUEUE_RULE": "similarity < MATCH_THRESHOLD OR media_type IN ['video', 'audio']"
+}

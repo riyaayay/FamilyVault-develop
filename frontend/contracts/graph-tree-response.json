@@ -1,0 +1,233 @@
+{
+  "endpoint": "GET /api/graph/tree",
+  "clan_id": "11111111-1111-1111-1111-111111111111",
+  "clan_name": "Vance Ancestral Clan",
+  "nodes": [
+    {
+      "id": "00000000-0000-0000-0000-000000000001",
+      "type": "familyMember",
+      "data": {
+        "full_name": "Arthur Vance",
+        "role": "ADMIN",
+        "relation_to_head": "HEAD",
+        "generation": 1,
+        "gender": "male",
+        "birth_date": "1948-03-15",
+        "is_living": true,
+        "avatar_url": null,
+        "nuclear_household": "Patriarchal Household"
+      },
+      "position": { "x": 400, "y": 50 }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000002",
+      "type": "familyMember",
+      "data": {
+        "full_name": "Eleanor Vance",
+        "role": "ADMIN",
+        "relation_to_head": "SPOUSE",
+        "generation": 1,
+        "gender": "female",
+        "birth_date": "1952-08-22",
+        "is_living": true,
+        "avatar_url": null,
+        "nuclear_household": "Patriarchal Household"
+      },
+      "position": { "x": 650, "y": 50 }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000003",
+      "type": "familyMember",
+      "data": {
+        "full_name": "David Vance",
+        "role": "MEMBER",
+        "relation_to_head": "CHILD",
+        "generation": 2,
+        "gender": "male",
+        "birth_date": "1975-11-10",
+        "is_living": true,
+        "avatar_url": null,
+        "nuclear_household": "Nuclear Household A"
+      },
+      "position": { "x": 200, "y": 250 }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000004",
+      "type": "familyMember",
+      "data": {
+        "full_name": "Sarah Vance",
+        "role": "MEMBER",
+        "relation_to_head": "SPOUSE",
+        "generation": 2,
+        "gender": "female",
+        "birth_date": "1978-05-18",
+        "is_living": true,
+        "avatar_url": null,
+        "nuclear_household": "Nuclear Household A"
+      },
+      "position": { "x": 380, "y": 250 }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000005",
+      "type": "familyMember",
+      "data": {
+        "full_name": "Michael Vance",
+        "role": "MEMBER",
+        "relation_to_head": "CHILD",
+        "generation": 2,
+        "gender": "male",
+        "birth_date": "1980-02-14",
+        "is_living": true,
+        "avatar_url": null,
+        "nuclear_household": "Nuclear Household B"
+      },
+      "position": { "x": 680, "y": 250 }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000006",
+      "type": "familyMember",
+      "data": {
+        "full_name": "Clara Vance",
+        "role": "MEMBER",
+        "relation_to_head": "SPOUSE",
+        "generation": 2,
+        "gender": "female",
+        "birth_date": "1982-09-30",
+        "is_living": true,
+        "avatar_url": null,
+        "nuclear_household": "Nuclear Household B"
+      },
+      "position": { "x": 860, "y": 250 }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000007",
+      "type": "familyMember",
+      "data": {
+        "full_name": "Robert Vance",
+        "role": "MEMBER",
+        "relation_to_head": "CHILD",
+        "generation": 2,
+        "gender": "male",
+        "birth_date": "1985-07-04",
+        "is_living": true,
+        "avatar_url": null,
+        "nuclear_household": "Extended Household"
+      },
+      "position": { "x": 1080, "y": 250 }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000008",
+      "type": "familyMember",
+      "data": {
+        "full_name": "Lucas Vance",
+        "role": "CHILD",
+        "relation_to_head": "EXTENDED",
+        "generation": 3,
+        "gender": "male",
+        "birth_date": "2005-06-12",
+        "is_living": true,
+        "avatar_url": null,
+        "nuclear_household": "Nuclear Household A"
+      },
+      "position": { "x": 290, "y": 450 }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000009",
+      "type": "familyMember",
+      "data": {
+        "full_name": "Sophia Vance",
+        "role": "CHILD",
+        "relation_to_head": "EXTENDED",
+        "generation": 3,
+        "gender": "female",
+        "birth_date": "2008-11-20",
+        "is_living": true,
+        "avatar_url": null,
+        "nuclear_household": "Nuclear Household B"
+      },
+      "position": { "x": 700, "y": 450 }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000010",
+      "type": "familyMember",
+      "data": {
+        "full_name": "Emma Vance",
+        "role": "VIEWER",
+        "relation_to_head": "EXTENDED",
+        "generation": 3,
+        "gender": "female",
+        "birth_date": "2012-01-08",
+        "is_living": true,
+        "avatar_url": null,
+        "nuclear_household": "Nuclear Household B"
+      },
+      "position": { "x": 880, "y": 450 }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_arthur_eleanor_spouse",
+      "source": "00000000-0000-0000-0000-000000000001",
+      "target": "00000000-0000-0000-0000-000000000002",
+      "label": "MARRIED_TO",
+      "type": "smoothstep",
+      "animated": false
+    },
+    {
+      "id": "e_arthur_david_child",
+      "source": "00000000-0000-0000-0000-000000000001",
+      "target": "00000000-0000-0000-0000-000000000003",
+      "label": "PARENT_OF",
+      "type": "smoothstep"
+    },
+    {
+      "id": "e_arthur_michael_child",
+      "source": "00000000-0000-0000-0000-000000000001",
+      "target": "00000000-0000-0000-0000-000000000005",
+      "label": "PARENT_OF",
+      "type": "smoothstep"
+    },
+    {
+      "id": "e_arthur_robert_child",
+      "source": "00000000-0000-0000-0000-000000000001",
+      "target": "00000000-0000-0000-0000-000000000007",
+      "label": "PARENT_OF",
+      "type": "smoothstep"
+    },
+    {
+      "id": "e_david_sarah_spouse",
+      "source": "00000000-0000-0000-0000-000000000003",
+      "target": "00000000-0000-0000-0000-000000000004",
+      "label": "MARRIED_TO",
+      "type": "smoothstep"
+    },
+    {
+      "id": "e_david_lucas_child",
+      "source": "00000000-0000-0000-0000-000000000003",
+      "target": "00000000-0000-0000-0000-000000000008",
+      "label": "PARENT_OF",
+      "type": "smoothstep"
+    },
+    {
+      "id": "e_michael_clara_spouse",
+      "source": "00000000-0000-0000-0000-000000000005",
+      "target": "00000000-0000-0000-0000-000000000006",
+      "label": "MARRIED_TO",
+      "type": "smoothstep"
+    },
+    {
+      "id": "e_michael_sophia_child",
+      "source": "00000000-0000-0000-0000-000000000005",
+      "target": "00000000-0000-0000-0000-000000000009",
+      "label": "PARENT_OF",
+      "type": "smoothstep"
+    },
+    {
+      "id": "e_michael_emma_child",
+      "source": "00000000-0000-0000-0000-000000000005",
+      "target": "00000000-0000-0000-0000-000000000010",
+      "label": "PARENT_OF",
+      "type": "smoothstep"
+    }
+  ]
+}
