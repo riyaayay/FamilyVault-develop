@@ -1,3 +1,4 @@
+import "@/lib/supabase/server-token";
 import { getFamilyMembers } from "@/lib/nuclear-family";
 import { getInbox, getKinshipLabel } from "@/lib/media-inbox";
 import type { InboxItem } from "@/lib/media-inbox";

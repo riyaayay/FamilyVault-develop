@@ -1,23 +1,43 @@
-from fastapi import FastAPI, HTTPException
+import os
+from contextlib import asynccontextmanager
+
+from fastapi import Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 import time
 
 
+from auth import AUTH_MODE, Caller, assert_in_clan, get_caller, require_writer
+import db
 from db import get_driver, NEO4J_DATABASE, run_schema_init
 from schemas import PersonIn
 import kinship
 import trustee
 
-app = FastAPI(title="FamilyVault Graph Service")
 
-
-@app.on_event("startup")
-def startup():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     try:
         run_schema_init()
     except Exception as exc:
         print(f"[graph-service] Startup notice: Neo4j schema init postponed (database warming up or offline fallback active): {exc}")
+    print(f"[graph-service] auth mode: {AUTH_MODE}")
+    yield
+    db.close_driver()
+
+
+app = FastAPI(title="FamilyVault Graph Service", lifespan=lifespan)
+
+# The tree canvas calls this service straight from the browser.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[o.strip() for o in os.getenv(
+        "GRAPH_CORS_ORIGINS", "http://localhost:3000,http://localhost:1111,https://familyvault.vercel.app"
+    ).split(",") if o.strip()],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-API-Key"],
+)
 
 
 @app.get("/health")
@@ -75,7 +95,7 @@ def health():
     }
 
 
-@app.post("/api/graph/person")
+@app.post("/api/graph/person", dependencies=[Depends(require_writer)])
 def create_person(person: PersonIn):
     """
     Creates or updates a :Person node carrying every field the tree
@@ -135,7 +155,7 @@ def create_person(person: PersonIn):
     return {"status": "created", "id": record["id"]}
 
 
-@app.post("/api/graph/relationship")
+@app.post("/api/graph/relationship", dependencies=[Depends(require_writer)])
 def create_relationship(
     parent_id: str = None,
     child_id: str = None,
@@ -257,17 +277,17 @@ def create_relationship(
 
 
 @app.get("/api/graph/tree")
-def get_tree(person_id: str, max_depth: int = 4):
+def get_tree(person_id: str, max_depth: int = 4, caller: Caller = Depends(get_caller)):
     """Returns {endpoint, clan_id, clan_name, nodes, edges} exactly per
-    contracts/graph-tree-response.json."""
-    tree = kinship.get_family_tree_graph(person_id, max_depth=max_depth)
+    contracts/graph-tree-response.json, limited to the caller's clan."""
+    tree = kinship.get_family_tree_graph(person_id, max_depth=max_depth, clan_id=caller.clan_id)
     if tree is None:
         raise HTTPException(status_code=404, detail=f"Person {person_id} not found in graph")
     return tree
 
 
 @app.get("/api/graph/persons")
-def list_persons():
+def list_persons(caller: Caller = Depends(get_caller)):
     """Lists every Person node currently in the graph (id + full_name).
     Backs the Sprint 3 UUID-sync verification script, and doubles as a
     quick sanity-check for Runeet/Ayush without needing direct DB access."""
@@ -275,8 +295,9 @@ def list_persons():
 
     def _read(tx):
         result = tx.run(
-            "MATCH (p:Person) RETURN p.id AS id, p.full_name AS full_name "
-            "ORDER BY p.full_name"
+            "MATCH (p:Person) WHERE $clan IS NULL OR p.clan_id = $clan "
+            "RETURN p.id AS id, p.full_name AS full_name ORDER BY p.full_name",
+            clan=caller.clan_id,
         )
         return [{"id": r["id"], "full_name": r["full_name"]} for r in result]
 
@@ -287,7 +308,8 @@ def list_persons():
 
 
 @app.get("/api/graph/kinship")
-def get_kinship(person_a: str, person_b: str, max_depth: int = 8):
+def get_kinship(person_a: str, person_b: str, max_depth: int = 8, caller: Caller = Depends(get_caller)):
+    assert_in_clan([person_a, person_b], caller.clan_id)
     result = kinship.get_kinship_path(person_a, person_b, max_depth=max_depth)
     if result is None:
         raise HTTPException(
@@ -306,7 +328,7 @@ def get_kinship(person_a: str, person_b: str, max_depth: int = 8):
 # Output contract consumed by Anushka's KinshipPathGlow (D6).
 # ---------------------------------------------------------------------------
 @app.get("/api/graph/kinship/{from_id}/{to_id}")
-def get_kinship_rich(from_id: str, to_id: str, max_depth: int = 8):
+def get_kinship_rich(from_id: str, to_id: str, max_depth: int = 8, caller: Caller = Depends(get_caller)):
     """Sprint 4 D5 (Riya) — returns the shortest ancestral/marital traversal
     path between two clan members with:
       - kinship_label: Indian cultural term (Chacha, Tauji, Mama, Bua, Masi)
@@ -317,6 +339,7 @@ def get_kinship_rich(from_id: str, to_id: str, max_depth: int = 8):
       - path_edges: ordered list of {source, target, rel_type} dicts.
       - from_node / to_node: minimal node metadata.
     """
+    assert_in_clan([from_id, to_id], caller.clan_id)
     result = kinship.get_kinship_path_rich(from_id, to_id, max_depth=max_depth)
     if result is None:
         raise HTTPException(
@@ -327,6 +350,41 @@ def get_kinship_rich(from_id: str, to_id: str, max_depth: int = 8):
             ),
         )
     return result
+
+
+# English glosses for the cultural titles the kinship engine resolves.
+CULTURAL_GLOSS = {
+    "Chacha": "Father's younger brother",
+    "Tauji": "Father's elder brother",
+    "Chacha/Tauji": "Father's brother",
+    "Bua": "Father's sister",
+    "Mama": "Mother's brother",
+    "Masi": "Mother's sister",
+    "father": "Father", "mother": "Mother", "parent": "Parent",
+    "son": "Son", "daughter": "Daughter", "child": "Child",
+    "brother": "Brother", "sister": "Sister", "sibling": "Sibling",
+    "spouse": "Spouse", "self": "Self",
+}
+
+
+@app.get("/api/graph/kinship/cultural/{person_a}/{person_b}")
+def get_kinship_cultural(person_a: str, person_b: str, max_depth: int = 8, caller: Caller = Depends(get_caller)):
+    """Compact title card for the frontend (lib/cultural-kinship.ts): how
+    person_b is related to person_a, with an English gloss and the path to glow."""
+    assert_in_clan([person_a, person_b], caller.clan_id)
+    rich = kinship.get_kinship_path_rich(person_a, person_b, max_depth=max_depth)
+    if rich is None:
+        raise HTTPException(status_code=404, detail=f"No path found between {person_a} and {person_b}")
+    term = rich["kinship_label"]
+    gen_a = rich["from_node"].get("generation") or 0
+    gen_b = rich["to_node"].get("generation") or 0
+    return {
+        "term": term,
+        "english": CULTURAL_GLOSS.get(term, term),
+        "generational_depth": abs(int(gen_a) - int(gen_b)),
+        "gotra": rich["from_node"].get("gotra") or rich["to_node"].get("gotra"),
+        "path_node_ids": rich["path_node_ids"],
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -359,7 +417,7 @@ class TrusteeSignIn(BaseModel):
     doc_id: str
 
 
-@app.post("/api/graph/document")
+@app.post("/api/graph/document", dependencies=[Depends(require_writer)])
 def sync_document(doc_in: DocumentSyncIn):
     """Sprint 5 D5 (Riya) — upsert a :Document node into Neo4j.
 
@@ -384,7 +442,7 @@ def sync_document(doc_in: DocumentSyncIn):
     return result
 
 
-@app.post("/api/graph/trustee")
+@app.post("/api/graph/trustee", dependencies=[Depends(require_writer)])
 def assign_trustee(body: TrusteeAssignIn):
     """Sprint 5 D5 (Riya) — create (:Person)-[:TRUSTEE_FOR {role}]->(:Document).
 
@@ -411,7 +469,7 @@ def assign_trustee(body: TrusteeAssignIn):
     return result
 
 
-@app.post("/api/graph/trustee/sign")
+@app.post("/api/graph/trustee/sign", dependencies=[Depends(require_writer)])
 def sign_as_trustee(body: TrusteeSignIn):
     """Sprint 5 D5 (Riya) — stamp signed_at on the TRUSTEE_FOR edge.
 
@@ -464,7 +522,7 @@ def get_trustees(doc_id: str, max_depth: int = 8):
 
 
 @app.get("/api/graph/trustee/person/{person_id}")
-def get_trustee_documents(person_id: str):
+def get_trustee_documents(person_id: str, caller: Caller = Depends(get_caller)):
     """Sprint 5 D5 (Riya) — all documents for which a person is a trustee.
 
     Reverse traversal: (:Person {id})-[:TRUSTEE_FOR]->(:Document*)
@@ -474,10 +532,11 @@ def get_trustee_documents(person_id: str):
     Consumed by Anushka's MilestoneNodeBadge to count how many signatures
     each family member node still owes (badge shows count, not list).
     """
+    assert_in_clan([person_id], caller.clan_id)
     result = trustee.get_documents_for_trustee(person_id)
     if result is None:
         raise HTTPException(
             status_code=404,
             detail=f"Person {person_id} not found in graph",
         )
-    return {"person_id": person_id, "pending_count": sum(1 for d in result if not d["has_signed"]), "documents": result}
+    return {"person_id": person_id, "pending_count": sum(1 for d in result if not d["has_signed"]), "documents": result}

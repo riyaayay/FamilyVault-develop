@@ -1,6 +1,26 @@
 import { type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
+// Deployed service origins (Render/Railway/R2) must be allowed explicitly,
+// otherwise the browser blocks every API call once the app leaves localhost.
+const serviceOrigins = [
+  process.env.NEXT_PUBLIC_API_URL,
+  process.env.NEXT_PUBLIC_GRAPH_API_URL,
+  process.env.NEXT_PUBLIC_BIOMETRICS_API_URL,
+  process.env.NEXT_PUBLIC_MEDIA_ORIGIN,
+]
+  .map((url) => {
+    try {
+      return url ? new URL(url).origin : null;
+    } catch {
+      return null;
+    }
+  })
+  .filter((origin): origin is string => Boolean(origin))
+  .join(" ");
+
+const devOrigins = process.env.NODE_ENV === "production" ? "" : "http://localhost:* http://127.0.0.1:*";
+
 export async function middleware(request: NextRequest) {
   const res = await updateSession(request);
 
@@ -17,9 +37,10 @@ export async function middleware(request: NextRequest) {
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
       "style-src 'self' 'unsafe-inline'",
-      "connect-src 'self' https://accounts.google.com https://*.supabase.co wss://*.supabase.co http://localhost:* http://127.0.0.1:*",
+      `connect-src 'self' https://accounts.google.com https://*.supabase.co wss://*.supabase.co ${serviceOrigins} ${devOrigins}`,
       "frame-src https://accounts.google.com",
-      "img-src 'self' data: https:",
+      `img-src 'self' data: blob: https: ${devOrigins}`,
+      `media-src 'self' blob: https: ${devOrigins}`,
     ].join("; ")
   );
 

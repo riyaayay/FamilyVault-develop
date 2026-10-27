@@ -1,3 +1,5 @@
+import { authHeaders } from "./api";
+
 export type CulturalKinshipResponse = {
   term: string;
   english: string;
@@ -69,6 +71,7 @@ export async function fetchCulturalKinship(
     const res = await fetch(endpoint, {
       signal: AbortSignal.timeout(2000),
       cache: "no-store",
+      headers: await authHeaders(),
     });
     if (res.ok) {
       return (await res.json()) as CulturalKinshipResponse;

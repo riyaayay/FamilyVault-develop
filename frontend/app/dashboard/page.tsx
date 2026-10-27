@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 
+import "@/lib/supabase/server-token";
 import { getFamilyMembers, getPets } from "@/lib/nuclear-family";
 import { DashboardBento } from "@/components/dashboard/dashboard-bento";
 

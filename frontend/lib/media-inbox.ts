@@ -17,6 +17,7 @@
 // With no backend URL configured, or when the inbox is on mock data, triage
 // runs in mock mode and always succeeds.
 
+import { authHeaders, mediaUrl } from "./api";
 export type InboxStatus = "pending" | "accepted" | "rejected";
 
 export type InboxFace = {
@@ -158,7 +159,6 @@ const mockInbox: InboxItem[] = [
 ];
 
 const GRAPH_URL = process.env.NEXT_PUBLIC_GRAPH_API_URL;
-// Check the real env var name with: grep -n "process.env" lib/nuclear-family.ts
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL;
 
 // True when the inbox came from mock data. Triage then skips the backend,
@@ -166,8 +166,8 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL;
 let usingMock = !BACKEND_URL;
 
 // Maps one backend MediaContributionResponse to an InboxItem.
-// The backend has no bbox, face names or thumbnail URL yet, so those stay
-// empty. Faces come from the confidence_scores dict ({ face_id: score }).
+// The backend has no bbox or face names yet, so those stay empty; the
+// thumbnail is resolved from the storage key. Faces come from the confidence_scores dict ({ face_id: score }).
 function normalizeBackendItem(raw: any): InboxItem {
     const scores = raw.confidence_scores ?? {};
     const faces: InboxFace[] = Object.keys(scores).map((faceId) => ({
@@ -180,7 +180,7 @@ function normalizeBackendItem(raw: any): InboxItem {
     return {
         mediaId: raw.id,
         mediaType: String(raw.media_type ?? "image").split("/")[0],
-        thumbnailUrl: "",
+        thumbnailUrl: mediaUrl(raw.r2_storage_key ?? ""),
         uploadedBy: raw.uploader_id ?? "",
         uploadedByName: "",
         uploadedAt: raw.created_at ?? "",
@@ -199,6 +199,7 @@ export async function getInbox(): Promise<InboxItem[]> {
     try {
         const res = await fetch(`${BACKEND_URL}/api/v1/media/inbox`, {
             cache: "no-store",
+            headers: await authHeaders(),
         });
         if (!res.ok) throw new Error(`getInbox fetch failed: ${res.status}`);
         const json = await res.json();
@@ -223,7 +224,7 @@ export async function getKinshipLabel(
     try {
         const res = await fetch(
             `${GRAPH_URL}/api/graph/kinship?person_a=${VIEWER_ID}&person_b=${personId}`,
-            { cache: "no-store" },
+            { cache: "no-store", headers: await authHeaders() },
         );
         if (!res.ok) throw new Error(`getKinshipLabel fetch failed: ${res.status}`);
         const data = await res.json();
@@ -245,7 +246,7 @@ export async function triageMedia(
     try {
         const res = await fetch(`${BACKEND_URL}/api/v1/media/${mediaId}/triage`, {
             method: "PATCH",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", ...(await authHeaders()) },
             body: JSON.stringify({
                 status: status === "accepted" ? "AUTO_PUBLISHED" : "REJECTED",
             }),
@@ -277,7 +278,7 @@ export async function triageBatch(
     try {
         const res = await fetch(`${BACKEND_URL}/api/v1/media/batch-triage`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", ...(await authHeaders()) },
             body: JSON.stringify({
                 media_ids: realIds,
                 status: status === "accepted" ? "AUTO_PUBLISHED" : "REJECTED",

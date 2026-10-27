@@ -236,7 +236,7 @@ def _compute_kinship_labels(nodes, edges, root_id):
     return labels
 
 
-def get_family_tree_graph(root_person_id: str, max_depth: int = 4):
+def get_family_tree_graph(root_person_id: str, max_depth: int = 4, clan_id: str = None):
     """Builds the {endpoint, clan_id, clan_name, nodes, edges} payload for
     /api/graph/tree, matching contracts/graph-tree-response.json exactly.
 
@@ -245,6 +245,10 @@ def get_family_tree_graph(root_person_id: str, max_depth: int = 4):
     a variable-length path pattern (*1..$maxDepth is invalid syntax).
     max_depth is always an internal int, never raw user text, so this is
     safe. Do NOT apply this same inlining to a string parameter.
+
+    When clan_id is given the tree is tenant-scoped: a root outside the clan
+    is "not found" and relatives in other clans (e.g. an in-law's birth
+    family) are dropped before edges are read.
     """
     driver = get_driver()
     max_depth = int(max_depth)
@@ -294,6 +298,11 @@ def get_family_tree_graph(root_person_id: str, max_depth: int = 4):
         if pid not in seen:
             seen.add(pid)
             unique_person_nodes.append(n)
+
+    if clan_id is not None:
+        if dict(record["root"]).get("clan_id") != clan_id:
+            return None
+        unique_person_nodes = [n for n in unique_person_nodes if dict(n).get("clan_id") == clan_id]
 
     ids = [n["id"] for n in unique_person_nodes]
 

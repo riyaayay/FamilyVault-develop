@@ -45,6 +45,9 @@ class Document(Base, TimestampMixin):
     trustee_approvals_required = Column(Integer, default=0, nullable=False)
     trustee_approvals_received = Column(JSONB, default=list, nullable=False)
     target_unlock_recipient_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    # users.id strings the uploader named as trustees; only they may sign, and
+    # they can see a PRIVATE_STRICT record once it is released.
+    designated_trustee_ids = Column(JSONB, default=list, nullable=False)
 
     # Vision Ingestion Extracted Metadata
     extracted_metadata = Column(JSONB, default=dict, nullable=False)

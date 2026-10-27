@@ -43,7 +43,17 @@ async def create_pet(
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> APIResponse[PetResponse]:
     """Register a new pet under the user's nuclear household."""
-    nuclear_family_id = current_user.nuclear_family_id or UUID("22222222-2222-2222-2222-222222222222")
+    if current_user.role not in ("ADMIN", "MEMBER", "SERVICE_ROLE"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Role '{current_user.role}' is not authorized to register pets",
+        )
+    if not current_user.nuclear_family_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User does not have an active nuclear household assigned",
+        )
+    nuclear_family_id = current_user.nuclear_family_id
 
     new_pet = Pet(
         nuclear_family_id=nuclear_family_id,
@@ -74,8 +84,8 @@ async def get_pet(
 ) -> APIResponse[PetResponse]:
     """Retrieve details for a specific pet within the user's household."""
     stmt = select(Pet).where(Pet.id == pet_id)
-    if current_user.nuclear_family_id:
-        stmt = stmt.where(Pet.nuclear_family_id == current_user.nuclear_family_id)
+    # A user without a household matches no pets (never every household's pets).
+    stmt = stmt.where(Pet.nuclear_family_id == current_user.nuclear_family_id)
 
     res = await db.execute(stmt)
     pet = res.scalars().first()
@@ -102,8 +112,8 @@ async def update_pet(
 ) -> APIResponse[PetResponse]:
     """Update pet details (vaccination log, breed, microchip)."""
     stmt = select(Pet).where(Pet.id == pet_id)
-    if current_user.nuclear_family_id:
-        stmt = stmt.where(Pet.nuclear_family_id == current_user.nuclear_family_id)
+    # A user without a household matches no pets (never every household's pets).
+    stmt = stmt.where(Pet.nuclear_family_id == current_user.nuclear_family_id)
 
     res = await db.execute(stmt)
     pet = res.scalars().first()
@@ -136,8 +146,8 @@ async def delete_pet(
 ) -> APIResponse[dict]:
     """Delete a pet record from household assets."""
     stmt = select(Pet).where(Pet.id == pet_id)
-    if current_user.nuclear_family_id:
-        stmt = stmt.where(Pet.nuclear_family_id == current_user.nuclear_family_id)
+    # A user without a household matches no pets (never every household's pets).
+    stmt = stmt.where(Pet.nuclear_family_id == current_user.nuclear_family_id)
 
     res = await db.execute(stmt)
     pet = res.scalars().first()

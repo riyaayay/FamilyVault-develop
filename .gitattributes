@@ -1,0 +1,39 @@
+# FamilyVault — Git Line Ending Policy
+# Ensures consistent LF line endings in the repository regardless of the
+# developer's operating system. Windows checkouts get CRLF; the remote always
+# stores LF so CI (Ubuntu runners) never sees mixed-ending diffs.
+
+* text=auto eol=lf
+
+# Force LF for scripts that run in CI / containers
+*.sh        text eol=lf
+*.py        text eol=lf
+*.sql       text eol=lf
+*.md        text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.ts        text eol=lf
+*.tsx       text eol=lf
+*.js        text eol=lf
+*.jsx       text eol=lf
+*.json      text eol=lf
+*.css       text eol=lf
+*.env       text eol=lf
+*.example   text eol=lf
+Dockerfile  text eol=lf
+.gitignore  text eol=lf
+
+# Binary — never diff / convert
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.webp      binary
+*.gif       binary
+*.ico       binary
+*.mp4       binary
+*.mp3       binary
+*.pdf       binary
+*.docx      binary
+*.zip       binary
+*.tar.gz    binary
+*.whl       binary

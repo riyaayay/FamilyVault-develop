@@ -77,7 +77,22 @@ biometrics/data/
 
 # Antigravity / GSD Planning
 .planning/
-# PDF files
-*.pdf
 
+# Scratch / generated analysis files (not project source)
 implementation_plan.md
+generated_workflow_pdf.py
+
+# Biometric model cache (large, downloaded at runtime)
+biometrics/.insightface/
+/root/.insightface/
+
+# Graph service data
+graph-service/data/
+
+# Logs
+*.log
+logs/
+
+# Coverage
+coverage/
+.coverage.*

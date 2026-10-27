@@ -25,6 +25,7 @@ import fallbackTreeData from "@/contracts/graph-tree-response.json";
 import { KinshipPathGlowEdge, type KinshipEdgeData } from "@/components/family/KinshipPathGlow";
 import { PersonDrawer } from "@/components/family/PersonDrawer";
 import { fetchCulturalKinship, type CulturalKinshipResponse } from "@/lib/cultural-kinship";
+import { authHeaders, getSessionUserId } from "@/lib/api";
 import {
   MilestoneNodeBadge,
   type MilestoneBadgeData,
@@ -336,7 +337,9 @@ function FamilyTreeCanvas() {
 
     const graphBaseUrl =
       process.env.NEXT_PUBLIC_GRAPH_API_URL || "http://localhost:8001";
-    const rootPersonId = "00000000-0000-0000-0000-000000000001";
+    // Kinship badges are relative to the root: the signed-in member, or the
+    // seeded clan head for demo visitors.
+    const rootPersonId = (await getSessionUserId()) || "00000000-0000-0000-0000-000000000001";
 
     const handlers = {
       onEmergencyClick: handleEmergencyClick,
@@ -346,6 +349,7 @@ function FamilyTreeCanvas() {
     try {
       const res = await fetch(`${graphBaseUrl}/api/graph/tree?person_id=${rootPersonId}&max_depth=4`, {
         signal: AbortSignal.timeout(2500),
+        headers: await authHeaders(),
       });
 
       if (res.ok) {

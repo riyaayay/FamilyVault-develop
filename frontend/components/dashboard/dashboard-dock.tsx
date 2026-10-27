@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { HomeIcon, Inbox, Network, Users, Vault } from 'lucide-react';
+import { HeartPulse, HomeIcon, Inbox, Network, ScrollText, Users, Vault } from 'lucide-react';
 
 import { Dock, DockIcon, DockItem, DockLabel } from '@/components/ui/dock';
 
@@ -39,6 +39,20 @@ const data = [
     href: '/dashboard/vault',
     icon: (
       <Vault className='h-full w-full text-neutral-600 dark:text-neutral-300' />
+    ),
+  },
+  {
+    title: 'Health',
+    href: '/dashboard/health',
+    icon: (
+      <HeartPulse className='h-full w-full text-neutral-600 dark:text-neutral-300' />
+    ),
+  },
+  {
+    title: 'Lore',
+    href: '/dashboard/lore',
+    icon: (
+      <ScrollText className='h-full w-full text-neutral-600 dark:text-neutral-300' />
     ),
   },
 ];

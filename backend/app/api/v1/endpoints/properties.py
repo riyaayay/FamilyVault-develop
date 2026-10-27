@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from app.core.database import get_db
-from app.core.security import get_current_user, AuthenticatedUser
+from app.core.security import get_current_user, AuthenticatedUser, require_clan
 from app.models.household import Property
 from app.schemas.household import PropertyCreate, PropertyUpdate, PropertyResponse
 from app.schemas.common import APIResponse
@@ -19,7 +19,7 @@ async def list_properties(
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> APIResponse[List[PropertyResponse]]:
     """List properties belonging to the user's joint clan (optional household filter)."""
-    joint_family_id = current_user.joint_family_id or UUID("11111111-1111-1111-1111-111111111111")
+    joint_family_id = require_clan(current_user)
     stmt = select(Property).where(Property.joint_family_id == joint_family_id)
 
     if household_id:
@@ -49,7 +49,7 @@ async def create_property(
             detail=f"Role '{current_user.role}' is not authorized to register property records",
         )
 
-    joint_family_id = current_user.joint_family_id or UUID("11111111-1111-1111-1111-111111111111")
+    joint_family_id = require_clan(current_user)
     nuclear_family_id = prop_in.nuclear_family_id or current_user.nuclear_family_id
 
     new_prop = Property(
@@ -82,7 +82,7 @@ async def get_property(
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> APIResponse[PropertyResponse]:
     """Retrieve details for a specific clan real estate asset."""
-    joint_family_id = current_user.joint_family_id or UUID("11111111-1111-1111-1111-111111111111")
+    joint_family_id = require_clan(current_user)
     stmt = select(Property).where(Property.id == prop_id, Property.joint_family_id == joint_family_id)
 
     res = await db.execute(stmt)
@@ -115,7 +115,7 @@ async def update_property(
             detail=f"Role '{current_user.role}' is not authorized to update property records",
         )
 
-    joint_family_id = current_user.joint_family_id or UUID("11111111-1111-1111-1111-111111111111")
+    joint_family_id = require_clan(current_user)
     stmt = select(Property).where(Property.id == prop_id, Property.joint_family_id == joint_family_id)
 
     res = await db.execute(stmt)
@@ -154,7 +154,7 @@ async def delete_property(
             detail=f"Role '{current_user.role}' is not authorized to delete property records",
         )
 
-    joint_family_id = current_user.joint_family_id or UUID("11111111-1111-1111-1111-111111111111")
+    joint_family_id = require_clan(current_user)
     stmt = select(Property).where(Property.id == prop_id, Property.joint_family_id == joint_family_id)
 
     res = await db.execute(stmt)

@@ -32,6 +32,7 @@ class HouseholdMemberResponse(BaseModel):
     user_id: Optional[UUID] = None
     name: str
     role: str
+    membership_role: Optional[str] = None  # raw family_memberships.role (ADMIN/MEMBER/CHILD/VIEWER)
     relation_to_head: Optional[str] = None
     initials: str
     accent: str = "chart-1"

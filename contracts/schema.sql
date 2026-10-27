@@ -172,6 +172,9 @@ CREATE TABLE IF NOT EXISTS documents (
     trustee_approvals_required INT DEFAULT 0 NOT NULL,
     trustee_approvals_received JSONB DEFAULT '[]'::jsonb NOT NULL,
     target_unlock_recipient_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    -- users.id strings named by the uploader; only they may sign, and they may
+    -- read a PRIVATE_STRICT record once it is no longer sealed.
+    designated_trustee_ids JSONB DEFAULT '[]'::jsonb NOT NULL,
     
     -- Vision Ingestion Auto-Extracted Metadata (JSONB)
     extracted_metadata JSONB DEFAULT '{}'::jsonb,
@@ -433,8 +436,11 @@ USING (
                 -- NUCLEAR_HOUSEHOLD: accessible only to the specific household
                 (visibility_tier = 'NUCLEAR_HOUSEHOLD' AND is_member_of_nuclear_family(nuclear_family_id))
                 OR
-                -- PRIVATE_STRICT: accessible to target recipient only if released
-                (visibility_tier = 'PRIVATE_STRICT' AND target_unlock_recipient_id = auth.uid() AND capsule_status = 'RELEASED')
+                -- PRIVATE_STRICT: owner (above), designated trustees, and the target recipient once released
+                (visibility_tier = 'PRIVATE_STRICT' AND (
+                    (target_unlock_recipient_id = auth.uid() AND capsule_status = 'RELEASED')
+                    OR designated_trustee_ids ? auth.uid()::text
+                ))
             )
         )
     )

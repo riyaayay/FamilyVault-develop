@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 
+import "@/lib/supabase/server-token";
 import { FamilyExplorer } from "@/components/family/family-explorer";
 import {
   getFamilyMembers,

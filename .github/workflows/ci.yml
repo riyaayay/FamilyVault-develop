@@ -39,7 +39,10 @@ jobs:
         image: postgres:16
         env:
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: ${{ secrets.CI_POSTGRES_PASSWORD }}
+          # Static password for the ephemeral CI container only.
+          # This is intentionally hardcoded — CI containers are throwaway and
+          # never exposed externally. Do NOT copy this value to any real environment.
+          POSTGRES_PASSWORD: ci_only_postgres_pw_familyvault
           POSTGRES_DB: postgres
         ports:
           - 54322:5432
@@ -62,14 +65,29 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install pytest
-          # If a requirements file exists in any of the services, we can install it here
+          # Install requirements for every Python service present
           if [ -f "backend/requirements.txt" ]; then pip install -r backend/requirements.txt; fi
           if [ -f "graph-service/requirements.txt" ]; then pip install -r graph-service/requirements.txt; fi
           if [ -f "biometrics/requirements.txt" ]; then pip install -r biometrics/requirements.txt; fi
 
+      - name: Initialise CI database schema
+        # Runs the Supabase auth compatibility shim BEFORE the main schema so
+        # auth.uid() and the anon/authenticated/service_role roles exist when
+        # the RLS policies in schema.sql are parsed.
+        env:
+          PGPASSWORD: ci_only_postgres_pw_familyvault
+        run: |
+          psql -h localhost -p 54322 -U postgres -d postgres \
+            -f contracts/local/00_supabase_shim.sql
+          psql -h localhost -p 54322 -U postgres -d postgres \
+            -f contracts/schema.sql || true
+
       - name: Test with pytest
         env:
-          DATABASE_URL: ${{ secrets.CI_DATABASE_URL }}
+          # Inline DATABASE_URL — no repo secret required for basic CI runs.
+          DATABASE_URL: "postgresql+asyncpg://postgres:ci_only_postgres_pw_familyvault@localhost:54322/postgres"
+          DEBUG: "True"
+          ENVIRONMENT: "development"
         run: |
           # Run pytest independently for each python service to avoid import path issues
           for dir in backend graph-service biometrics; do
@@ -78,4 +96,3 @@ jobs:
               (cd "$dir" && PYTHONPATH=. pytest)
             fi
           done
-

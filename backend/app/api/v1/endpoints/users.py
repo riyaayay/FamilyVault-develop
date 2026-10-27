@@ -61,8 +61,16 @@ async def list_family_users(
     db: AsyncSession = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> APIResponse[List[UserResponse]]:
-    """List all registered members in the joint clan."""
-    stmt = select(User)
+    """List all registered members in the caller's joint clan."""
+    if not current_user.joint_family_id:
+        return APIResponse(success=True, message="No clan membership", data=[])
+
+    stmt = (
+        select(User)
+        .join(FamilyMembership, FamilyMembership.user_id == User.id)
+        .where(FamilyMembership.joint_family_id == current_user.joint_family_id)
+        .distinct()
+    )
     res = await db.execute(stmt)
     users = res.scalars().all()
 
@@ -88,13 +96,17 @@ async def get_household_members_by_id(
         .outerjoin(JointFamily, FamilyMembership.joint_family_id == JointFamily.id)
         .where(FamilyMembership.nuclear_family_id == nuclear_family_id)
     )
+    if not current_user.is_service:
+        # A household in another clan simply has no visible members.
+        stmt = stmt.where(FamilyMembership.joint_family_id == current_user.joint_family_id)
     res = await db.execute(stmt)
     rows = res.all()
 
     # Query household pets
-    pet_stmt = select(Pet).where(Pet.nuclear_family_id == nuclear_family_id)
-    pet_res = await db.execute(pet_stmt)
-    pets = pet_res.scalars().all()
+    pets = []
+    if rows:
+        pet_stmt = select(Pet).where(Pet.nuclear_family_id == nuclear_family_id)
+        pets = (await db.execute(pet_stmt)).scalars().all()
 
     members: List[HouseholdMemberResponse] = []
     idx = 0
@@ -127,6 +139,7 @@ async def get_household_members_by_id(
                 user_id=user.id,
                 name=user.full_name,
                 role=role_mapped,
+                membership_role=membership.role,
                 relation_to_head=membership.relation_to_head,
                 initials=_compute_initials(user.full_name),
                 accent=ACCENTS[idx % len(ACCENTS)],
@@ -180,11 +193,6 @@ async def get_my_household_members(
 ) -> APIResponse[List[HouseholdMemberResponse]]:
     """Retrieve full roster of members and pets for current user's household."""
     target_household_id = current_user.nuclear_family_id
-    if not target_household_id:
-        # Fallback to first nuclear family if user has not set nuclear_family_id
-        nf_stmt = select(NuclearFamily.id).limit(1)
-        nf_res = await db.execute(nf_stmt)
-        target_household_id = nf_res.scalar_one_or_none()
 
     if not target_household_id:
         return APIResponse(
@@ -210,6 +218,8 @@ async def sync_clan_persons(
     Dedicated Graph-Service Sync Endpoint.
     Returns full person roster for the entire joint clan, formatted 1:1 for Neo4j PersonIn ingestion.
     """
+    if not current_user.is_service and clan_id != current_user.joint_family_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Clan not found")
     stmt = (
         select(FamilyMembership, User, JointFamily, NuclearFamily)
         .join(User, FamilyMembership.user_id == User.id)
@@ -289,10 +299,6 @@ async def sync_default_clan_persons(
 ) -> APIResponse[List[ClanPersonSyncResponse]]:
     """Sync endpoint defaulting to the authenticated user/service's clan or the primary seeded clan."""
     target_clan_id = current_user.joint_family_id
-    if not target_clan_id:
-        jf_stmt = select(JointFamily.id).limit(1)
-        jf_res = await db.execute(jf_stmt)
-        target_clan_id = jf_res.scalar_one_or_none()
 
     if not target_clan_id:
         return APIResponse(success=True, message="No clan found", data=[])

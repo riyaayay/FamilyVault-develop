@@ -26,6 +26,7 @@ Env vars (all optional, dev defaults match config.py):
     BACKEND_API_URL     default http://localhost:8000
     GRAPH_SERVICE_URL   default http://localhost:8001
     SERVICE_API_KEY     default "service-role-key-placeholder"
+    GRAPH_SERVICE_KEY   required when graph-service runs with GRAPH_AUTH_MODE=jwt
                         (matches backend's dev default -- MUST be
                         overridden with a real secret outside local dev)
 """
@@ -41,6 +42,8 @@ BACKEND_API_URL = os.environ.get("BACKEND_API_URL", "http://localhost:8000")
 GRAPH_SERVICE_URL = os.environ.get("GRAPH_SERVICE_URL", "http://localhost:8001")
 SERVICE_API_KEY = os.environ.get("SERVICE_API_KEY", "service-role-key-placeholder")
 HEADERS = {"X-API-Key": SERVICE_API_KEY}
+# Graph writes need the graph service key when it runs with GRAPH_AUTH_MODE=jwt.
+GRAPH_HEADERS = {"X-API-Key": os.environ["GRAPH_SERVICE_KEY"]} if os.environ.get("GRAPH_SERVICE_KEY") else {}
 
 # backend/scripts/sync_postgres_to_neo4j.py -> repo root -> contracts/
 CONTRACT_PATH = Path(__file__).resolve().parent.parent.parent / "contracts" / "graph-tree-response.json"
@@ -65,7 +68,7 @@ async def sync_persons(client, persons):
     failed = []
     for person in persons:
         try:
-            resp = await client.post(f"{GRAPH_SERVICE_URL}/api/graph/person", json=person)
+            resp = await client.post(f"{GRAPH_SERVICE_URL}/api/graph/person", json=person, headers=GRAPH_HEADERS)
             resp.raise_for_status()
             print(f"  OK   {person['full_name']} ({person['person_id']})")
         except httpx.HTTPError as exc:
@@ -83,11 +86,13 @@ async def sync_edges(client, edges):
                 resp = await client.post(
                     f"{GRAPH_SERVICE_URL}/api/graph/relationship",
                     params={"parent_id": edge["source"], "child_id": edge["target"]},
+                    headers=GRAPH_HEADERS,
                 )
             elif label == "MARRIED_TO":
                 resp = await client.post(
                     f"{GRAPH_SERVICE_URL}/api/graph/relationship",
                     params={"spouse_a": edge["source"], "spouse_b": edge["target"]},
+                    headers=GRAPH_HEADERS,
                 )
             else:
                 print(f"  SKIP unknown edge label {label}: {edge['id']}")

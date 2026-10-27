@@ -1,3 +1,5 @@
+import { BACKEND_URL, backendFetch } from "./api";
+
 // Mock data layer for the Nuclear Family dashboard views.
 //
 // Contracts-first approach (protocol Section 2): shapes here mirror what
@@ -252,48 +254,131 @@ const mockPetVaccinations: PetVaccination[] = [
   { id: "pet-vax-2", petId: "barnaby", vaccine: "DHPP 7-in-1", dueDate: "2026-08-25", status: statusFor("2026-08-25") },
 ];
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+// ---------------------------------------------------------------------------
+// Live data. Each getter maps the Core Backend's response onto the types
+// above and falls back to the mock arrays when the backend is unreachable or
+// the visitor is not signed in, so the dashboard always renders.
+// ---------------------------------------------------------------------------
 
-// Generic fetch helper: hits the live backend, falls back to mock data on
-// any network/parse error so the dashboard still renders offline or if the
-// backend is briefly down. Logs a warning so the fallback isn't silent.
-async function fetchWithFallback<T>(path: string, fallback: T, label: string): Promise<T> {
+type HouseholdMemberDto = {
+  id: string;
+  user_id: string | null;
+  name: string;
+  membership_role?: MembershipRole | null;
+  relation_to_head?: string | null;
+  avatar_url?: string | null;
+  species?: string | null;
+  is_pet: boolean;
+};
+
+type DocumentDto = {
+  id: string;
+  title: string;
+  category: string;
+  uploader_id: string;
+  visibility_tier: Visibility;
+  capsule_status: string;
+  updated_at: string;
+};
+
+type PetDto = {
+  id: string;
+  nuclear_family_id: string;
+  name: string;
+  pet_type: Pet["petType"];
+  breed?: string | null;
+  vaccination_schedule?: { vaccine?: string; administered_on?: string; next_due?: string }[];
+};
+
+const RELATIONS: RelationToHead[] = ["HEAD", "SPOUSE", "CHILD", "PARENT", "SIBLING", "EXTENDED"];
+
+async function withFallback<T>(label: string, fallback: T, load: () => Promise<T>): Promise<T> {
+  if (!BACKEND_URL) return fallback;
   try {
-    const res = await fetch(`${API_URL}${path}`);
-    if (!res.ok) throw new Error(`${label} fetch failed: ${res.status}`);
-    return (await res.json()) as T;
+    return await load();
   } catch (err) {
     console.warn(`[nuclear-family] ${label} falling back to mock data:`, err);
     return fallback;
   }
 }
 
+async function householdRoster(): Promise<HouseholdMemberDto[]> {
+  return backendFetch<HouseholdMemberDto[]>("/api/v1/household/members");
+}
+
 export async function getFamilyMembers(): Promise<FamilyMember[]> {
-  return fetchWithFallback(
-    `/api/v1/household/members?nuclear_family_id=${NUCLEAR_FAMILY_ID}`,
-    mockFamilyMembers,
-    "getFamilyMembers"
-  );
+  return withFallback("getFamilyMembers", mockFamilyMembers, async () => {
+    const roster = (await householdRoster()).filter((m) => !m.is_pet && m.user_id);
+    if (roster.length === 0) return mockFamilyMembers;
+    return roster.map((m, i) => ({
+      id: m.user_id as string,
+      fullName: m.name,
+      avatarUrl: m.avatar_url ?? undefined,
+      role: m.membership_role ?? "MEMBER",
+      relationToHead: RELATIONS.includes(m.relation_to_head as RelationToHead)
+        ? (m.relation_to_head as RelationToHead)
+        : "EXTENDED",
+      initials: initialsOf(m.name),
+      accent: ACCENTS[i % ACCENTS.length],
+    }));
+  });
+}
+
+async function householdPets(): Promise<PetDto[]> {
+  return backendFetch<PetDto[]>("/api/v1/pets/");
 }
 
 export async function getPets(): Promise<Pet[]> {
-  return fetchWithFallback(
-    `/api/v1/household/pets?nuclear_family_id=${NUCLEAR_FAMILY_ID}`,
-    mockPets,
-    "getPets"
+  return withFallback("getPets", mockPets, async () =>
+    (await householdPets()).map((p, i) => ({
+      id: p.id,
+      nuclearFamilyId: p.nuclear_family_id,
+      name: p.name,
+      petType: p.pet_type,
+      breed: p.breed ?? undefined,
+      initials: initialsOf(p.name),
+      accent: ACCENTS[(i + 1) % ACCENTS.length],
+    })),
   );
 }
 
+// Only documents that are readable right now; sealed capsules live on /dashboard/vault.
 export async function getPersonalRecords(): Promise<PersonalRecord[]> {
-  return fetchWithFallback("/api/vault/records", mockPersonalRecords, "getPersonalRecords");
+  return withFallback("getPersonalRecords", mockPersonalRecords, async () => {
+    const docs = await backendFetch<DocumentDto[]>("/api/v1/vault/");
+    return docs
+      .filter((d) => d.capsule_status === "ACTIVE" || d.capsule_status === "RELEASED")
+      .map((d) => ({
+        id: d.id,
+        title: d.title,
+        category: d.category === "PROPERTY" ? "property" : "document",
+        ownerId: d.uploader_id,
+        visibility: d.visibility_tier,
+        updatedAt: d.updated_at,
+      }));
+  });
 }
 
-// NOTE: no visibility_tier filtering here — RLS on health_records handles
-// owner / nuclear-family / emergency-visible access server-side.
+// health_records has no reminder/due-date concept yet, so reminders stay
+// curated mock data until a reminders table exists. Live medical data is on
+// /dashboard/health.
 export async function getHealthReminders(): Promise<HealthReminder[]> {
-  return fetchWithFallback("/api/health/reminders", mockHealthReminders, "getHealthReminders");
+  return mockHealthReminders;
 }
 
+// Derived from pets.vaccination_schedule[].next_due.
 export async function getPetVaccinations(): Promise<PetVaccination[]> {
-  return fetchWithFallback("/api/pets/vaccinations", mockPetVaccinations, "getPetVaccinations");
+  return withFallback("getPetVaccinations", mockPetVaccinations, async () =>
+    (await householdPets()).flatMap((p) =>
+      (p.vaccination_schedule ?? [])
+        .filter((v) => v.next_due)
+        .map((v, i) => ({
+          id: `${p.id}-vax-${i}`,
+          petId: p.id,
+          vaccine: v.vaccine ?? "Vaccination",
+          dueDate: String(v.next_due),
+          status: statusFor(String(v.next_due)),
+        })),
+    ),
+  );
 }
